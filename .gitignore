@@ -1,0 +1,9 @@
+# tmp files #
+#############
+.gdbinit
+
+
+# binary #
+##########
+obj
+

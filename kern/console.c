@@ -191,7 +191,7 @@ cga_putc(int c)
 		break;
 	}
 
-	// What is the purpose of this?
+	// Screen is full, scrolling down one line.
 	if (crt_pos >= CRT_SIZE) {
 		int i;
 

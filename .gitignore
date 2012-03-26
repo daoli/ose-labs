@@ -1,9 +1,18 @@
 # tmp files #
 #############
 .gdbinit
+jos.in
+jos.out
 
 
 # binary #
 ##########
 obj
+
+# gtags #
+#########
+GPATH
+GRTAGS
+GSYMS
+GTAGS
 

@@ -1,6 +1,10 @@
-; suitable Emacs defaults for the HIPL coding style
-((nil . ((tab-width . 4)
-         (show-trailing-whitespace . t)))
- (c-mode . ((c-basic-offset . 4)
-            (c-indentation-style . "k&r")))
-)
+((nil
+  (indent-tabs-mode . t)
+  (tab-width . 8))
+ (c-mode
+  (c-file-style . "bsd")
+  (c-basic-offset . 8))
+ (shell-mode
+  (sh-basic-offset . 8)
+  (sh-indentation . 8))
+ )

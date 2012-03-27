@@ -10,6 +10,7 @@
 
 static void cons_intr(int (*proc)(void));
 static void cons_putc(int c);
+uint16_t vga_color_scheme = 0x0700;
 
 // Stupid I/O delay routine necessitated by historical PC design flaws
 static void
@@ -164,7 +165,7 @@ cga_putc(int c)
 {
 	// if no attribute given, then use black on white
 	if (!(c & ~0xFF))
-		c |= 0x0700;
+		c |= vga_color_scheme;
 
 	switch (c & 0xff) {
 	case '\b':
@@ -197,7 +198,7 @@ cga_putc(int c)
 
 		memmove(crt_buf, crt_buf + CRT_COLS, (CRT_SIZE - CRT_COLS) * sizeof(uint16_t));
 		for (i = CRT_SIZE - CRT_COLS; i < CRT_SIZE; i++)
-			crt_buf[i] = 0x0700 | ' ';
+			crt_buf[i] = vga_color_scheme | ' ';
 		crt_pos -= CRT_COLS;
 	}
 

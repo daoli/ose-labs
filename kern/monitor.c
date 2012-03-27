@@ -13,6 +13,7 @@
 
 #define CMDBUF_SIZE	80	// enough for one VGA text line
 
+extern uint16_t vga_color_scheme;
 
 struct Command {
 	const char *name;
@@ -25,6 +26,7 @@ static struct Command commands[] = {
 	{ "help", "Display this list of commands", mon_help },
 	{ "kerninfo", "Display information about the kernel", mon_kerninfo },
 	{ "backtrace", "Display stack backtrace", mon_backtrace },
+	{ "matrix", "Turn on/off matrix style", mon_matrix },
 };
 #define NCOMMANDS (sizeof(commands)/sizeof(commands[0]))
 
@@ -84,6 +86,25 @@ mon_backtrace(int argc, char **argv, struct Trapframe *tf)
 	return 0;
 }
 
+int
+mon_matrix(int argc, char **argv, struct Trapframe *tf)
+{
+	char *err_str = "Command format: matrix on|off";
+	char *ok_str = "You should already see the difference. :-)";
+	if (argc != 2 || (strcmp(argv[1], "on") && strcmp(argv[1], "off"))) {
+		// Command format wrong
+		cprintf("%s\n", err_str);
+		return 0;
+	} else {
+		if (strcmp(argv[1], "on") == 0) {
+			vga_color_scheme = 0x0200;
+		} else {
+			vga_color_scheme = 0x0700;
+		}
+		cprintf("%s\n", ok_str);
+		return 0;
+	}
+}
 
 
 /***** Kernel monitor command interpreter *****/

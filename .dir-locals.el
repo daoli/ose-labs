@@ -1,10 +1,10 @@
 ((nil
   (indent-tabs-mode . t)
-  (tab-width . 4))
+  (tab-width . 8))
  (c-mode
   (c-file-style . "bsd")
-  (c-basic-offset . 4))
+  (c-basic-offset . 8))
  (shell-mode
-  (sh-basic-offset . 4)
-  (sh-indentation . 4))
+  (sh-basic-offset . 8)
+  (sh-indentation . 8))
  )

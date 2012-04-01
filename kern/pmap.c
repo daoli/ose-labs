@@ -12,6 +12,7 @@
 // These variables are set by i386_detect_memory()
 size_t npages;			// Amount of physical memory (in pages)
 static size_t npages_basemem;	// Amount of base memory (in pages)
+static uint32_t page_pse;	// weather PSE is on or off
 
 // These variables are set in mem_init()
 pde_t *kern_pgdir;		// Kernel's initial page directory
@@ -33,6 +34,7 @@ static void
 i386_detect_memory(void)
 {
 	size_t npages_extmem;
+	uint32_t cpu_feature, cr4;
 
 	// Use CMOS calls to measure available base & extended memory.
 	// (CMOS calls return results in kilobytes.)
@@ -46,12 +48,21 @@ i386_detect_memory(void)
 	else
 		npages = npages_basemem;
 
+	//Check if current CPU supports PSE. If PSE is supported, enable it.
+	cpuid(0x1, NULL, NULL, NULL, &cpu_feature);
+	if (cpu_feature & 0x8) {
+		cr4 = rcr4();
+		cr4 |= CR4_PSE;
+		lcr4(cr4);
+		page_pse = 1;
+	}
+
 	cprintf("Physical memory: %uK available, base = %uK, extended = %uK\n",
 		npages * PGSIZE / 1024,
 		npages_basemem * PGSIZE / 1024,
 		npages_extmem * PGSIZE / 1024);
+	cprintf("Page Size Extension (PSE): %s\n", (page_pse) ? "ON" : "OFF");
 }
-
 
 // --------------------------------------------------------------
 // Set up memory mappings above UTOP.
@@ -64,6 +75,7 @@ static physaddr_t check_va2pa(pde_t *pgdir, uintptr_t va);
 static void check_page(void);
 static void check_page_installed_pgdir(void);
 static void boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm);
+static void boot_map_region_ext(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm);
 
 // This simple physical memory allocator is used only while JOS is setting
 // up its virtual memory system.  page_alloc() is the real allocator.
@@ -205,7 +217,13 @@ mem_init(void)
 	// We might not have 2^32 - KERNBASE bytes of physical memory, but
 	// we just set up the mapping anyway.
 	// Permissions: kernel RW, user NONE
-	boot_map_region(kern_pgdir, KERNBASE, 0xFFFFFFFF - KERNBASE + 1, 0x0, PTE_W);
+	if (page_pse) {
+		boot_map_region_ext(kern_pgdir, KERNBASE,
+				    0xFFFFFFFF - KERNBASE + 1, 0x0, PTE_W);
+	} else {
+		boot_map_region(kern_pgdir, KERNBASE,
+				0xFFFFFFFF - KERNBASE + 1, 0x0, PTE_W);
+	}
 
 	// Check that the initial page directory has been set up correctly.
 	check_kern_pgdir();
@@ -412,6 +430,21 @@ boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm
 		}
 		pgdir[PDX(va + i)] |= perm | PTE_P;
 		*ptep = PTE_ADDR(pa + i) | perm | PTE_P;
+	}
+}
+
+//
+// Similar to ``boot_map_region``, except that this function uses 4MB page
+// extension (PSE, Page Size Extension) to map addresses.
+//
+// This function should only be called when PSE is enabled.
+static void
+boot_map_region_ext(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm)
+{
+	int i;
+
+	for (i = 0; i < size; i+= PTSIZE) {
+		pgdir[PDX(va + i)] = PTE_ADDR_PSE(pa + i) | PTE_PS | perm | PTE_P;
 	}
 }
 
@@ -738,6 +771,9 @@ check_va2pa(pde_t *pgdir, uintptr_t va)
 	pgdir = &pgdir[PDX(va)];
 	if (!(*pgdir & PTE_P))
 		return ~0;
+	if (page_pse && (*pgdir & PTE_PS)) {
+		return PTE_ADDR_PSE(*pgdir) | PGOFF_PSE(va);
+	}
 	p = (pte_t*) KADDR(PTE_ADDR(*pgdir));
 	if (!(p[PTX(va)] & PTE_P))
 		return ~0;

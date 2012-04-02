@@ -96,10 +96,23 @@ boot_alloc(uint32_t n)
 	// Allocate a chunk large enough to hold 'n' bytes, then update
 	// nextfree.  Make sure nextfree is kept aligned
 	// to a multiple of PGSIZE.
-	//
-	// LAB 2: Your code here.
+	uint32_t npages_requested = ROUNDUP(n, PGSIZE) / PGSIZE;
+	// panic("%d", ROUNDUP(0, PGSIZE));
+	uint32_t nbytes_used = (uintptr_t)nextfree - KERNBASE;
+	uint32_t npages_available = npages - ROUNDUP(nbytes_used, PGSIZE) / PGSIZE;
+	//panic("total: %d avail: %d nextfree: %x KERNBASE: %x", 
+	//		npages, npages_available, (uintptr_t)nextfree, KERNBASE);
 
-	return NULL;
+	result = nextfree;
+	if (npages_requested < npages_available) {
+		nextfree += npages_requested * PGSIZE;
+	} else if (npages_requested == npages_available) {
+		nextfree = (char *) 0xffffffff;
+	} else {
+		panic("boot_alloc: memory used up!");
+	}
+
+	return result;
 }
 
 // Set up a two-level page table:
@@ -121,7 +134,7 @@ mem_init(void)
 	i386_detect_memory();
 
 	// Remove this line when you're ready to test this function.
-	panic("mem_init: This function is not finished\n");
+	// panic("mem_init: This function is not finished\n");
 
 	//////////////////////////////////////////////////////////////////////
 	// create initial page directory.
@@ -142,7 +155,7 @@ mem_init(void)
 	// The kernel uses this array to keep track of physical pages: for
 	// each physical page, there is a corresponding struct Page in this
 	// array.  'npages' is the number of physical pages in memory.
-	// Your code goes here:
+	pages = boot_alloc(npages * sizeof(struct Page));;
 
 
 	//////////////////////////////////////////////////////////////////////
@@ -246,11 +259,31 @@ page_init(void)
 	// Change the code to reflect this.
 	// NB: DO NOT actually touch the physical memory corresponding to
 	// free pages!
-	size_t i;
-	for (i = 0; i < npages; i++) {
+	pages[0].pp_ref = 1;
+	pages[0].pp_link = NULL;
+
+	uint32_t i = 1;
+	while (i < npages_basemem) {
 		pages[i].pp_ref = 0;
 		pages[i].pp_link = page_free_list;
 		page_free_list = &pages[i];
+		i++;
+	}
+
+	uint32_t npages_io = ROUNDUP(EXTPHYSMEM - IOPHYSMEM, PGSIZE) / PGSIZE;
+	uint32_t nbytes_kern = (uintptr_t) boot_alloc(0) - KERNBASE;
+	uint32_t npages_kern = ROUNDUP(nbytes_kern, PGSIZE) / PGSIZE;
+	while (i < npages_basemem + npages_io + npages_kern) {
+		pages[i].pp_ref = 1;
+		pages[i].pp_link = NULL;
+		i++;
+	}
+
+	while (i < npages) {
+		pages[i].pp_ref = 0;
+		pages[i].pp_link = page_free_list;
+		page_free_list = &pages[i];
+		i++;
 	}
 }
 
@@ -266,8 +299,20 @@ page_init(void)
 struct Page *
 page_alloc(int alloc_flags)
 {
-	// Fill this function in
-	return 0;
+	if (page_free_list == NULL) {
+		return NULL;
+	}
+
+	struct Page *page = page_free_list;
+	page_free_list = page->pp_link;
+	page->pp_ref = 0;
+	page->pp_link = NULL;
+
+	if (alloc_flags & ALLOC_ZERO) {
+		memset(page2kva(page), 0, PGSIZE);
+	}
+
+	return page;
 }
 
 //
@@ -277,7 +322,12 @@ page_alloc(int alloc_flags)
 void
 page_free(struct Page *pp)
 {
-	// Fill this function in
+	if (!pp || pp->pp_ref) {
+		return;
+	}
+
+	pp->pp_link = page_free_list;
+	page_free_list = pp;
 }
 
 //

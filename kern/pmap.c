@@ -408,6 +408,34 @@ pgdir_walk(pde_t *pgdir, const void *va, int create)
 	return &pdep[PTX(va)];
 }
 
+//Get the virtual memory mapping information of a given page directory and
+//a virtual address. The result is stored in 'page_info' struct.
+//
+//If PSE is enable or pde's PRESENT bit is 0, pte in the result will be set
+//to zero.
+void
+pg_info(pde_t *pgdir, const void *va, struct page_info *info)
+{
+	pde_t  *pdep;
+	pte_t  *ptep;
+
+	pdep = &pgdir[PDX(va)];
+	info->pde = *pdep;
+	info->pse = 0;
+
+	if (!(*pdep & PTE_P)) {
+		info->pte = 0;
+		return;
+	}
+	if (page_pse && (*pdep & PTE_PS)) {
+		info->pte = 0;
+		info->pse = 1;
+	} else {
+		ptep = KADDR(PTE_ADDR(*pdep));
+		info->pte = ptep[PTX(va)];
+	}
+}
+
 //
 // Map [va, va+size) of virtual address space to physical [pa, pa+size)
 // in the page table rooted at pgdir.  Size is a multiple of PGSIZE.

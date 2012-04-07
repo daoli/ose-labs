@@ -10,6 +10,7 @@
 #include <kern/console.h>
 #include <kern/monitor.h>
 #include <kern/kdebug.h>
+#include <kern/pmap.h>
 
 #define CMDBUF_SIZE	80	// enough for one VGA text line
 
@@ -27,6 +28,7 @@ static struct Command commands[] = {
 	{ "kerninfo", "Display information about the kernel", mon_kerninfo },
 	{ "backtrace", "Display stack backtrace", mon_backtrace },
 	{ "matrix", "Turn on/off matrix style", mon_matrix },
+	{ "mem_showmappings", "Show virtual memory mappings", mon_mem_showmappings },
 };
 #define NCOMMANDS (sizeof(commands)/sizeof(commands[0]))
 
@@ -106,6 +108,62 @@ mon_matrix(int argc, char **argv, struct Trapframe *tf)
 	}
 }
 
+int
+mon_mem_showmappings(int argc, char **argv, struct Trapframe *tf)
+{
+	char *err_str = "Command format: mem_showmappings START END\n"
+		"\tSTART <= END and they should both be in HEX form (without 0x prefix).";
+	uint32_t start, end, i, tmp;
+	char *ep_start, *ep_end;
+	struct page_info info;
+
+	// Input arguments check
+	if (argc != 3) {
+		cprintf("%s\n", err_str);
+		return 0;
+	}
+	start = (uint32_t) strtol(argv[1], &ep_start, 16);
+	end = (uint32_t) strtol(argv[2], &ep_end, 16);
+	if ((ep_start - argv[1]) != strlen(argv[1])
+	    || (ep_end - argv[2]) != strlen(argv[2])
+	    || start > end) {
+		cprintf("%s\n", err_str);
+		return 0;
+	}
+
+	// Print results
+	for (i = 0; i <= PGNUM(end) - PGNUM(start); i++) {
+		tmp = (~PGOFF(start) & start) + i * PGSIZE;
+		cprintf("VA: 0x%08x to 0x%08x\n", tmp, tmp - 1 + PGSIZE);
+		pg_info(kern_pgdir, (void *)tmp, &info);
+		if (info.pse) {
+			cprintf("    PDE[%4d] P = %s | R/W = %s | S/U = %s | 0x%08x - 0x%08x\n",
+				PDX(tmp),
+				(info.pde & PTE_P) ? " ON" : "OFF",
+				(info.pde & PTE_W) ? "W" : "R",
+				(info.pde & PTE_U) ? "U" : "S",
+				PTE_ADDR_PSE(info.pde),
+				PTE_ADDR_PSE(info.pde) - 1 + PTSIZE);
+			continue;
+		}
+		cprintf("    PDE[%4d], P = %s | R/W = %s | S/U = %s\n",
+			PDX(tmp),
+			(info.pde & PTE_P) ? " ON" : "OFF",
+			(info.pde & PTE_W) ? "W" : "R",
+			(info.pde & PTE_U) ? "U" : "S");
+		if (!(info.pde & PTE_P)) {
+			continue;
+		}
+		cprintf("    PTE[%4d], P = %s | R/W = %s | S/U = %s | 0x%08x - 0x%08x\n",
+			PTX(tmp),
+			(info.pte & PTE_P) ? " ON" : "OFF",
+			(info.pte & PTE_W) ? "W" : "R",
+			(info.pte & PTE_U) ? "U" : "S",
+			PTE_ADDR(info.pte),
+			PTE_ADDR(info.pte) - 1 + PGSIZE);
+	}
+	return 0;
+}
 
 /***** Kernel monitor command interpreter *****/
 

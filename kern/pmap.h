@@ -82,6 +82,14 @@ page2kva(struct Page *pp)
 	return KADDR(page2pa(pp));
 }
 
+struct page_info {
+	int pse;
+	pde_t pde;
+	pte_t pte;
+};
+
 pte_t *pgdir_walk(pde_t *pgdir, const void *va, int create);
+void pg_info(pde_t *pgdir, const void *va, struct page_info *info);
+int pg_perm(pde_t *pgdir, void *va, uint32_t perm);
 
 #endif /* !JOS_KERN_PMAP_H */

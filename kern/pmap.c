@@ -408,32 +408,59 @@ pgdir_walk(pde_t *pgdir, const void *va, int create)
 	return &pdep[PTX(va)];
 }
 
-//Get the virtual memory mapping information of a given page directory and
-//a virtual address. The result is stored in 'page_info' struct.
+// Get the virtual memory mapping information of a given page directory and
+// a virtual address. The result is stored in 'page_info' struct.
 //
-//If PSE is enable or pde's PRESENT bit is 0, pte in the result will be set
-//to zero.
+// If PSE is enable or pde's PRESENT bit is 0, pte in the result will be set
+// to zero.
+//
 void
 pg_info(pde_t *pgdir, const void *va, struct page_info *info)
 {
-	pde_t  *pdep;
 	pte_t  *ptep;
 
-	pdep = &pgdir[PDX(va)];
-	info->pde = *pdep;
+	ptep = &pgdir[PDX(va)];
+	info->pde = *ptep;
 	info->pse = 0;
 
-	if (!(*pdep & PTE_P)) {
+	if (!(*ptep & PTE_P)) {
 		info->pte = 0;
 		return;
 	}
-	if (page_pse && (*pdep & PTE_PS)) {
+	if (page_pse && (*ptep & PTE_PS)) {
 		info->pte = 0;
 		info->pse = 1;
 	} else {
-		ptep = KADDR(PTE_ADDR(*pdep));
+		ptep = KADDR(PTE_ADDR(*ptep));
 		info->pte = ptep[PTX(va)];
 	}
+}
+
+// Set permission R/W and U/S for a page corresponding to given 'va'.
+//
+// return -1 if the PRESENT bit of the page is not set, otherwise 0.
+//
+int
+pg_perm(pde_t *pgdir, void *va, uint32_t perm)
+{
+	pte_t  *ptep;
+
+	ptep = &pgdir[PDX(va)];
+	if (!(*ptep & PTE_P)) {
+		return -1;
+	}
+	if (!(page_pse && (*ptep & PTE_PS))) {
+		ptep = KADDR(PTE_ADDR(*ptep));
+		ptep = ptep + PTX(va);
+		if (!(*ptep & PTE_P)) {
+			return -1;
+		}
+	}
+
+	*ptep = (perm & PTE_U) ? (*ptep | PTE_U) : (*ptep & ~PTE_U);
+	*ptep = (perm & PTE_W) ? (*ptep | PTE_W) : (*ptep & ~PTE_W);
+
+	return 0;
 }
 
 //

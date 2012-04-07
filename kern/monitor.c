@@ -28,7 +28,8 @@ static struct Command commands[] = {
 	{ "kerninfo", "Display information about the kernel", mon_kerninfo },
 	{ "backtrace", "Display stack backtrace", mon_backtrace },
 	{ "matrix", "Turn on/off matrix style", mon_matrix },
-	{ "mem_showmappings", "Show virtual memory mappings", mon_mem_showmappings },
+	{ "mem_mapping", "Show virtual memory mappings", mon_mem_showmappings },
+	{ "mem_perm", "Set permission for a page", mon_mem_permissions },
 	{ "mem_dump", "dump memory", mon_mem_dump },
 };
 #define NCOMMANDS (sizeof(commands)/sizeof(commands[0]))
@@ -113,7 +114,7 @@ int
 mon_mem_showmappings(int argc, char **argv, struct Trapframe *tf)
 {
 	char *err_str = "Command format: mem_showmappings START END\n"
-		"\tSTART <= END and they should both be in HEX form.";
+		"   START <= END and they should both be in HEX form.";
 	uint32_t start, end, i, tmp;
 	char *ep_start, *ep_end;
 	struct page_info info;
@@ -166,6 +167,53 @@ mon_mem_showmappings(int argc, char **argv, struct Trapframe *tf)
 	return 0;
 }
 
+int mon_mem_permissions(int argc, char **argv, struct Trapframe *tf)
+{
+	char *err_str = "Command format: mem_permissions VADDR P|U|W\n"
+		"   VADDR: a virtual address, should be in HEX form.\n"
+		"   R|W|U|S: permission bit, if multiple bits are specified,\n"
+		"            use '|' as separator or combine them together.";
+
+	uint32_t va, i, permissions = 0;
+	char *tmp;
+	struct page_info info;
+
+	// Input arguments check
+	if (argc != 3) {
+		cprintf("%s\n", err_str);
+		return 0;
+	}
+	va = (uint32_t) strtol(argv[1], &tmp, 16);
+	if ((tmp - argv[1]) != strlen(argv[1])) {
+		cprintf("%s\n", err_str);
+		return 0;
+	}
+	tmp = argv[2];
+	for (i = 0; i < strlen(argv[2]); i++) {
+		switch (argv[2][i]) {
+		case 'R':
+		case '|':
+		case 'S':
+			break;
+		case 'U':
+			permissions |= PTE_U;
+			break;
+		case 'W':
+			permissions |= PTE_W;
+			break;
+		default:
+			cprintf("%s\n", err_str);
+			return 0;
+		}
+	}
+
+	// Set permission bits
+	if (pg_perm(kern_pgdir, (void *) va, permissions) < 0) {
+		cprintf("Page PRESENT bit not set for VA: 0x%08x\n", va);
+	}
+	return 0;
+}
+
 #define MD_COL 16
 #define MD_OFF(addr) (((uint32_t) (addr)) & (MD_COL-1))
 #define MD_MASK(addr) (~MD_OFF(addr) & ((uint32_t) (addr)))
@@ -211,8 +259,8 @@ int
 mon_mem_dump(int argc, char **argv, struct Trapframe *tf)
 {
 	char *err_str = "Command format: mem_dump p|v START END\n"
-		"\t p|v, physical address or virtual address\n"
-		"\t START <= END and they should both be in HEX form.";
+		"   p|v: physical address or virtual address\n"
+		"   START <= END and they should both be in HEX form.";
 
 	uint32_t start, end;
 	uint64_t i;

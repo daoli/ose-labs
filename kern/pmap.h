@@ -90,5 +90,6 @@ struct page_info {
 
 pte_t *pgdir_walk(pde_t *pgdir, const void *va, int create);
 void pg_info(pde_t *pgdir, const void *va, struct page_info *info);
+int pg_perm(pde_t *pgdir, void *va, uint32_t perm);
 
 #endif /* !JOS_KERN_PMAP_H */

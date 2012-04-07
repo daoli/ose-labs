@@ -29,6 +29,7 @@ static struct Command commands[] = {
 	{ "backtrace", "Display stack backtrace", mon_backtrace },
 	{ "matrix", "Turn on/off matrix style", mon_matrix },
 	{ "mem_showmappings", "Show virtual memory mappings", mon_mem_showmappings },
+	{ "mem_dump", "dump memory", mon_mem_dump },
 };
 #define NCOMMANDS (sizeof(commands)/sizeof(commands[0]))
 
@@ -112,7 +113,7 @@ int
 mon_mem_showmappings(int argc, char **argv, struct Trapframe *tf)
 {
 	char *err_str = "Command format: mem_showmappings START END\n"
-		"\tSTART <= END and they should both be in HEX form (without 0x prefix).";
+		"\tSTART <= END and they should both be in HEX form.";
 	uint32_t start, end, i, tmp;
 	char *ep_start, *ep_end;
 	struct page_info info;
@@ -162,6 +163,113 @@ mon_mem_showmappings(int argc, char **argv, struct Trapframe *tf)
 			PTE_ADDR(info.pte),
 			PTE_ADDR(info.pte) - 1 + PGSIZE);
 	}
+	return 0;
+}
+
+#define MD_COL 16
+#define MD_OFF(addr) (((uint32_t) (addr)) & (MD_COL-1))
+#define MD_MASK(addr) (~MD_OFF(addr) & ((uint32_t) (addr)))
+
+// A helper function for memory dumping, it prints dump of physical memory
+// in range [start, end]. An index number is printed every 'MD_COL' numbers on
+// the leftmost.
+//
+// 'start_va' the initial index of the 'start', which is used as a index
+//            offset.
+// NOTE: it may cause kernel panic if accessing out of physical memory.
+static void
+mem_dump_helper(physaddr_t start, physaddr_t end, uintptr_t start_va,
+		int include_offset)
+{
+	uint64_t i;
+	uintptr_t va_index = start_va;
+
+	if (!include_offset) {
+		i = start;
+	} else {
+		i = MD_MASK(start);
+		va_index = MD_MASK(start_va);
+	}
+
+	for (; i <= end; i++, va_index++) {
+		if (va_index % MD_COL == 0) {
+			cprintf("%08x   ", va_index);
+		}
+		if (include_offset && i < start) {
+			cprintf("   ");
+		} else {
+			cprintf("%02x ", *((uint8_t *)KADDR(i)));
+		}
+		if ((MD_OFF(va_index) + 1) % MD_COL == 0) {
+			cprintf("\n");
+		}
+	}
+
+}
+
+int
+mon_mem_dump(int argc, char **argv, struct Trapframe *tf)
+{
+	char *err_str = "Command format: mem_dump p|v START END\n"
+		"\t p|v, physical address or virtual address\n"
+		"\t START <= END and they should both be in HEX form.";
+
+	uint32_t start, end;
+	uint64_t i;
+	char *ep_start, *ep_end;
+	struct page_info info;
+
+	// Input arguments check
+	if (argc != 4
+	    || (strcmp(argv[1], "p") != 0 && strcmp(argv[1], "v") != 0)) {
+		cprintf("%s\n", err_str);
+		return 0;
+	}
+	start = (uint32_t) strtol(argv[2], &ep_start, 16);
+	end = (uint32_t) strtol(argv[3], &ep_end, 16);
+	if ((ep_start - argv[2]) != strlen(argv[2])
+	    || (ep_end - argv[3]) != strlen(argv[3])
+	    || start > end) {
+		cprintf("%s\n", err_str);
+		return 0;
+	}
+
+	// Dump memory
+	if (strcmp(argv[1], "p") == 0) {
+		mem_dump_helper(start, end, start, 1);
+		if (MD_OFF(end) != MD_COL-1) {
+			cprintf("\n");
+		}
+	} else {
+		physaddr_t pa_start, pa_end;
+		int first = 1;
+		for (i = start; i <= end; i++) {
+			// print one page of virtual address at a time.
+			// '[pa_start, pa_end]' holds physical address boundary of one round.
+			pg_info(kern_pgdir, (void *) (uint32_t) i, &info);
+			if (info.pse && (info.pde & PTE_P)) {
+				pa_start = PTE_ADDR_PSE(info.pde) + PGOFF_PSE(i);
+				pa_end = PTE_ADDR_PSE(info.pde) - 1 + PTSIZE;
+			} else if (!info.pse && (info.pde & PTE_P)
+				   && (info.pte & PTE_P)) {
+				pa_start = PTE_ADDR(info.pte) + PGOFF(i);
+				pa_end = PTE_ADDR(info.pte) -1 + PGSIZE;
+			} else {
+				cprintf("VA: %x has no valid physical address mapping.\n", i);
+				return 0;
+			}
+			if (pa_end - pa_start > end - i) {
+				pa_end = end - i + pa_start;
+			}
+			mem_dump_helper(pa_start, pa_end, i, first);
+			first = 0;
+			i += pa_end - pa_start;
+		}
+		if (MD_OFF(end) != MD_COL-1) {
+			cprintf("\n");
+		}
+	}
+
 	return 0;
 }
 

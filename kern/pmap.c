@@ -296,7 +296,7 @@ page_init(void)
 	// free pages!
 	size_t i;
 	int npages_io = (EXTPHYSMEM - IOPHYSMEM) / PGSIZE;
-        uint32_t nbytes_kern = (uintptr_t) boot_alloc(0) - KERNBASE;
+	uint32_t nbytes_kern = (uintptr_t) boot_alloc(0) - KERNBASE;
 	int npages_kern = ROUNDUP(nbytes_kern, PGSIZE) / PGSIZE;
 
 	pages[0].pp_ref = 1;

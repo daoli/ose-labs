@@ -371,8 +371,9 @@ page_free(struct Page *pp)
 void
 page_decref(struct Page* pp)
 {
-	if (--pp->pp_ref == 0)
+	if (--pp->pp_ref == 0) {
 		page_free(pp);
+	}
 }
 
 // Given 'pgdir', a pointer to a page directory, pgdir_walk returns

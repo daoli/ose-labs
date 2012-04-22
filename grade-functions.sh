@@ -35,9 +35,8 @@ echo_n () {
 run () {
 	qemuextra=
 	if [ "$brkfn" ]; then
-		qemuextra="-S $qemugdb"
+		qemuextra="-s $qemugdb"
 	fi
-
 	qemucommand="$qemu -nographic $qemuopts -serial file:jos.out -monitor null -no-reboot $qemuextra"
 	if $verbose; then
 		echo $qemucommand 1>&2

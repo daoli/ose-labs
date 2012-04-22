@@ -71,12 +71,12 @@ TRAPHANDLER_NOEC(trap_SIMD, T_SIMDERR)
  * Lab 3: Your code here for _alltraps
  */
 _alltraps:
-	pushl	%ds		;build trapframe
+	pushl	%ds		//build trapframe
 	pushl	%es
 	pushal
-	movw	$GD_KD,%ax	;switch to kernel data segment
+	movw	$GD_KD,%ax	//switch to kernel data segment
 	movw	%ax,%ds
 	movw	%ax,%es
-	pushl	%esp		;call trap()
+	pushl	%esp		//call trap()
 	call	trap
 

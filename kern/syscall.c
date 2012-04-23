@@ -19,8 +19,17 @@ sys_cputs(const char *s, size_t len)
 {
 	// Check that the user has permission to read memory [s, s+len).
 	// Destroy the environment if not.
+	uint32_t i;
+	pte_t *pte;
 
-	// LAB 3: Your code here.
+	for (i = (uintptr_t) ROUNDDOWN(s, PGSIZE);
+	     i < (uintptr_t) ROUNDDOWN(s + len - 1, PGSIZE); i += PGSIZE) {
+		pte = pgdir_walk(curenv->env_pgdir, (void *) i, 0);
+		if (!pte || (*pte & PTE_P) == 0) {
+			env_destroy(curenv);
+			return;
+		}
+	}
 
 	// Print the string supplied by the user.
 	cprintf("%.*s", len, s);
@@ -68,7 +77,21 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 {
 	// Call the function corresponding to the 'syscallno' parameter.
 	// Return any appropriate return value.
-	// LAB 3: Your code here.
+	if (syscallno >= NSYSCALLS) {
+		return -E_INVAL;
+	}
+
+	switch(syscallno) {
+	case SYS_cputs:
+		sys_cputs((char *)a1, a2);
+		return syscallno;
+	case SYS_cgetc:
+		return sys_cgetc();
+	case SYS_getenvid:
+		return sys_getenvid();
+	case SYS_env_destroy:
+		return sys_env_destroy(a1);
+	}
 
 	panic("syscall not implemented");
 }

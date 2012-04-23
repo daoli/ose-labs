@@ -11,12 +11,20 @@
 ###################################################################
 
 .data
-	.global intr_len;
+	// An interrupt information table.
+	// Ends with a entry with `address == 0x0`.
+	// Three 32bit numbers for each entry:
+	//	interrupt number
+	//	interrupt handler function address
+	//	interrupt DPL
 	.global intr_table;
-intr_len:	.int 20
 intr_table:
 .text
 
+#define TRAPHANDLER_INFO(num, addr, dpl)				\
+.data;									\
+trapinfo_ ## num: .int num, addr, dpl ;					\
+.text;
 
 /* TRAPHANDLER defines a globally-visible function for handling a trap.
  * It pushes a trap number onto the stack, then jumps to _alltraps.
@@ -35,9 +43,7 @@ intr_table:
 	name:			/* function starts here */		\
 	pushl $(num);							\
 	jmp _alltraps;							\
-.data;									\
-name ## _info:	.int name, dpl;                                         \
-.text
+	TRAPHANDLER_INFO(num, name, dpl) ;
 
 /* Use TRAPHANDLER_NOEC for traps where the CPU doesn't push an error code.
  * It pushes a 0 in place of the error code, so the trap frame has the same
@@ -51,9 +57,7 @@ name ## _info:	.int name, dpl;                                         \
 	pushl $0;							\
 	pushl $(num);							\
 	jmp _alltraps;                                                  \
-.data;									\
-name ## _info:	.int name, dpl;						\
-.text
+	TRAPHANDLER_INFO(num, name, dpl) ;
 
 
 .text
@@ -70,17 +74,18 @@ TRAPHANDLER_NOEC(trap_5, T_BOUND, 0)
 TRAPHANDLER_NOEC(trap_6, T_ILLOP, 0)
 TRAPHANDLER_NOEC(trap_7, T_DEVICE, 0)
 TRAPHANDLER(trap_8, T_DBLFLT, 0)
-TRAPHANDLER_NOEC(trap_9, 9, 0)
 TRAPHANDLER(trap_10, T_TSS, 0)
 TRAPHANDLER(trap_11, T_SEGNP, 0)
 TRAPHANDLER(trap_12, T_STACK, 0)
 TRAPHANDLER(trap_13, T_GPFLT, 0)
 TRAPHANDLER(trap_14, T_PGFLT, 0)
-TRAPHANDLER_NOEC(trap_15, 15, 0)
 TRAPHANDLER_NOEC(trap_16, T_FPERR, 0)
 TRAPHANDLER(trap_17, T_ALIGN, 0)
 TRAPHANDLER_NOEC(trap_18, T_MCHK, 0)
 TRAPHANDLER_NOEC(trap_19, T_SIMDERR, 0)
+TRAPHANDLER_NOEC(trap_48, T_SYSCALL, 3)
+//A termination indicator of the interrupt information table
+TRAPHANDLER_INFO(0xFFFF, 0x0, 0)
 
 /*
  * Lab 3: Your code here for _alltraps

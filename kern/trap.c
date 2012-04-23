@@ -62,22 +62,23 @@ void
 trap_init(void)
 {
 	struct intr_info {
+		uint32_t intr_num;
 		uint32_t intr_addr;
 		uint32_t intr_dpl;
 	};
 
 	extern struct Segdesc gdt[];
 	extern struct intr_info intr_table[];
-	extern int intr_len;
 
 	int i;
+	struct intr_info *itr = intr_table;
 
 	// prepare IDT
-	for (i = 0; i < intr_len; i++) {
-		SETGATE(idt[i], 0, GD_KT, intr_table[i].intr_addr,
-			intr_table[i].intr_dpl);
+	while (itr->intr_addr) {
+		SETGATE(idt[itr->intr_num], 0, GD_KT, itr->intr_addr,
+			itr->intr_dpl);
+		itr++;
 	}
-
 	// Per-CPU setup
 	trap_init_percpu();
 }
@@ -157,10 +158,13 @@ trap_dispatch(struct Trapframe *tf)
 	switch(tf->tf_trapno) {
 	case T_PGFLT:
 		page_fault_handler(tf);
-		break;
+		return;
 	case T_BRKPT:
 		breakpoint_handler(tf);
-		break;
+		return;
+	case T_SYSCALL:
+		syscall_handler(tf);
+		return;
 	}
 
 	// Unexpected trap: The user process or the kernel has a bug.
@@ -237,5 +241,14 @@ void
 breakpoint_handler(struct Trapframe *tf)
 {
 	monitor(tf);
+}
+
+void
+syscall_handler(struct Trapframe *tf)
+{
+	struct PushRegs *rs = &tf->tf_regs;
+
+	rs->reg_eax = syscall(rs->reg_eax, rs->reg_edx, rs->reg_ecx,
+			      rs->reg_ebx, rs->reg_edi, rs->reg_esi);
 }
 

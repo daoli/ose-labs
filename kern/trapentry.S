@@ -12,9 +12,9 @@
 
 .data
 	.global intr_len;
-	.global intr_addrs;
+	.global intr_table;
 intr_len:	.int 20
-intr_addrs:
+intr_table:
 .text
 
 
@@ -28,7 +28,7 @@ intr_addrs:
  *   void NAME();
  * where NAME is the argument passed to TRAPHANDLER.
  */
-#define TRAPHANDLER(name, num)						\
+#define TRAPHANDLER(name, num, dpl)					\
 	.globl name;		/* define global symbol for 'name' */	\
 	.type name, @function;	/* symbol type is function */		\
 	.align 2;		/* align function definition */		\
@@ -36,14 +36,14 @@ intr_addrs:
 	pushl $(num);							\
 	jmp _alltraps;							\
 .data;									\
-name ## _info:	.int name;                                         	\
+name ## _info:	.int name, dpl;                                         \
 .text
 
 /* Use TRAPHANDLER_NOEC for traps where the CPU doesn't push an error code.
  * It pushes a 0 in place of the error code, so the trap frame has the same
  * format in either case.
  */
-#define TRAPHANDLER_NOEC(name, num)					\
+#define TRAPHANDLER_NOEC(name, num, dpl)				\
 	.globl name;							\
 	.type name, @function;						\
 	.align 2;							\
@@ -52,7 +52,7 @@ name ## _info:	.int name;                                         	\
 	pushl $(num);							\
 	jmp _alltraps;                                                  \
 .data;									\
-name ## _info:	.int name;						\
+name ## _info:	.int name, dpl;						\
 .text
 
 
@@ -61,26 +61,26 @@ name ## _info:	.int name;						\
 /*
  * Lab 3: Your code here for generating entry points for the different traps.
  */
-TRAPHANDLER_NOEC(trap_0, T_DIVIDE)
-TRAPHANDLER_NOEC(trap_1, T_DEBUG)
-TRAPHANDLER_NOEC(trap_2, T_NMI)
-TRAPHANDLER_NOEC(trap_3, T_BRKPT)
-TRAPHANDLER_NOEC(trap_4, T_OFLOW)
-TRAPHANDLER_NOEC(trap_5, T_BOUND)
-TRAPHANDLER_NOEC(trap_6, T_ILLOP)
-TRAPHANDLER_NOEC(trap_7, T_DEVICE)
-TRAPHANDLER(trap_8, T_DBLFLT)
-TRAPHANDLER_NOEC(trap_9, 9)
-TRAPHANDLER(trap_10, T_TSS)
-TRAPHANDLER(trap_11, T_SEGNP)
-TRAPHANDLER(trap_12, T_STACK)
-TRAPHANDLER(trap_13, T_GPFLT)
-TRAPHANDLER(trap_14, T_PGFLT)
-TRAPHANDLER_NOEC(trap_15, 15)
-TRAPHANDLER_NOEC(trap_16, T_FPERR)
-TRAPHANDLER(trap_17, T_ALIGN)
-TRAPHANDLER_NOEC(trap_18, T_MCHK)
-TRAPHANDLER_NOEC(trap_19, T_SIMDERR)
+TRAPHANDLER_NOEC(trap_0, T_DIVIDE, 0)
+TRAPHANDLER_NOEC(trap_1, T_DEBUG, 0)
+TRAPHANDLER_NOEC(trap_2, T_NMI, 0)
+TRAPHANDLER_NOEC(trap_3, T_BRKPT, 3)
+TRAPHANDLER_NOEC(trap_4, T_OFLOW, 0)
+TRAPHANDLER_NOEC(trap_5, T_BOUND, 0)
+TRAPHANDLER_NOEC(trap_6, T_ILLOP, 0)
+TRAPHANDLER_NOEC(trap_7, T_DEVICE, 0)
+TRAPHANDLER(trap_8, T_DBLFLT, 0)
+TRAPHANDLER_NOEC(trap_9, 9, 0)
+TRAPHANDLER(trap_10, T_TSS, 0)
+TRAPHANDLER(trap_11, T_SEGNP, 0)
+TRAPHANDLER(trap_12, T_STACK, 0)
+TRAPHANDLER(trap_13, T_GPFLT, 0)
+TRAPHANDLER(trap_14, T_PGFLT, 0)
+TRAPHANDLER_NOEC(trap_15, 15, 0)
+TRAPHANDLER_NOEC(trap_16, T_FPERR, 0)
+TRAPHANDLER(trap_17, T_ALIGN, 0)
+TRAPHANDLER_NOEC(trap_18, T_MCHK, 0)
+TRAPHANDLER_NOEC(trap_19, T_SIMDERR, 0)
 
 /*
  * Lab 3: Your code here for _alltraps

@@ -61,15 +61,21 @@ static const char *trapname(int trapno)
 void
 trap_init(void)
 {
+	struct intr_info {
+		uint32_t intr_addr;
+		uint32_t intr_dpl;
+	};
+
 	extern struct Segdesc gdt[];
-	extern int intr_addrs[];
+	extern struct intr_info intr_table[];
 	extern int intr_len;
 
 	int i;
 
 	// prepare IDT
 	for (i = 0; i < intr_len; i++) {
-		SETGATE(idt[i], 0, GD_KT, intr_addrs[i], 0);
+		SETGATE(idt[i], 0, GD_KT, intr_table[i].intr_addr,
+			intr_table[i].intr_dpl);
 	}
 
 	// Per-CPU setup
@@ -148,7 +154,14 @@ static void
 trap_dispatch(struct Trapframe *tf)
 {
 	// Handle processor exceptions.
-	// LAB 3: Your code here.
+	switch(tf->tf_trapno) {
+	case T_PGFLT:
+		page_fault_handler(tf);
+		break;
+	case T_BRKPT:
+		breakpoint_handler(tf);
+		break;
+	}
 
 	// Unexpected trap: The user process or the kernel has a bug.
 	print_trapframe(tf);
@@ -218,5 +231,11 @@ page_fault_handler(struct Trapframe *tf)
 		curenv->env_id, fault_va, tf->tf_eip);
 	print_trapframe(tf);
 	env_destroy(curenv);
+}
+
+void
+breakpoint_handler(struct Trapframe *tf)
+{
+	monitor(tf);
 }
 

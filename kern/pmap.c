@@ -660,7 +660,39 @@ static uintptr_t user_mem_check_addr;
 int
 user_mem_check(struct Env *env, const void *va, size_t len, int perm)
 {
-	// LAB 3: Your code here.
+	uint32_t i, vaddr, pgidx_start, pg_count, extra_sz;
+	pte_t *pte;
+	int err = 0;
+
+	vaddr = (uintptr_t) va;   // avoid following tedious casting
+	pgidx_start = ROUNDDOWN(vaddr, PGSIZE) / PGSIZE;
+	pg_count = ROUNDDOWN(len, PGSIZE) / PGSIZE;
+	pg_count += ROUNDUP(vaddr % PGSIZE + len % PGSIZE, PGSIZE) / PGSIZE;
+
+	if (vaddr >= ULIM) {
+		user_mem_check_addr = vaddr;
+		return -E_FAULT;
+	}
+	if (pgidx_start + pg_count >= ROUNDDOWN(ULIM, PGSIZE)) {
+		user_mem_check_addr = ULIM;
+		return -E_FAULT;
+	}
+
+	for (i = pgidx_start * PGSIZE;
+	     i < (pgidx_start + pg_count) * PGSIZE; i += PGSIZE) {
+		pte = pgdir_walk(env->env_pgdir, (void *) i, 0);
+		if (!pte || !(*pte & PTE_P)) {
+			err = 1;
+		} else if ((perm & PTE_U) && !(*pte & PTE_U)) {
+			err = 1;
+		} else if ((perm & PTE_W) && !(*pte & PTE_W)) {
+			err = 1;
+		}
+		if (err) {
+			user_mem_check_addr = (vaddr > i) ? vaddr : i;
+			return -E_FAULT;
+		}
+	}
 
 	return 0;
 }

@@ -64,6 +64,8 @@ mon_kerninfo(int argc, char **argv, struct Trapframe *tf)
 	return 0;
 }
 
+// A user-mode code (via breakpoint interrupt) may go over the USTACKTOP when
+// dereferencing arguments, then a kernel mode page fault occurs.
 int
 mon_backtrace(int argc, char **argv, struct Trapframe *tf)
 {
@@ -78,7 +80,10 @@ mon_backtrace(int argc, char **argv, struct Trapframe *tf)
 		cprintf("  ebp %08x  eip %08x  args %08x %08x %08x %08x %08x\n",
 				ebp, eip, *(p+2), *(p+3), *(p+4), *(p+5), *(p+6));
 
-		debuginfo_eip(eip, &info);
+		if (debuginfo_eip(eip, &info) < 0) {
+			cprintf("debuginfo_eip error\n");
+			return 0;
+		}
 		cprintf("         %s:%d: %.*s+%d\n",
 				info.eip_file,
 				info.eip_line,
@@ -87,7 +92,6 @@ mon_backtrace(int argc, char **argv, struct Trapframe *tf)
 				eip-info.eip_fn_addr);
 		ebp = *p;
 	}
-
 	return 0;
 }
 
